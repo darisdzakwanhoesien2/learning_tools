@@ -1,5 +1,53 @@
 https://chatgpt.com/c/697369b8-e950-832c-b860-e33e0dd4af9e
 
+https://notebooklm.google.com/notebook/b8888570-6bb2-4efd-8d5d-4727a920c97b
+
+https://chatgpt.com/c/6973c40e-9bf8-832c-b61c-79c5b57e9bf3
+
+Based on the sources, there are two "Question 1" sections: one regarding **Pinhole Camera Models** (Exercise 1) and another regarding **Nearest Neighbor/Mean Classification** (Exercise 5).
+
+Below is a Python script using **Streamlit** to create a multi-page interactive application that solves both tasks using the data and formulas provided in the sources.
+
+```python
+
+```
+
+### **How this solves the tasks drawing from the sources:**
+
+1.  **Pinhole Camera (Exercise 1):**
+    *   It implements the **perspective projection equations** ($x_n = f \frac{x_c}{z_c}$) mentioned in the source.
+    *   It provides the **geometric reasoning** (similar triangles) and explains the effect of placing a **virtual image** in front of the pinhole, as requested by the source.
+
+2.  **Classification (Exercise 5):**
+    *   It uses the specific **2D point coordinates** provided for Class $C_1$ and $C_2$ in Source.
+    *   It calculates the **class mean vectors (centroids)** as required in part (a).
+    *   It implements the **Euclidean distance** formula to classify the specific point $x = [9.6, 2]$ using both the **Nearest Mean** and **K-Nearest Neighbor ($K=3$)** methods,.
+    *   The visualization helps confirm the spatial distribution of the points mentioned in the exercise.
+
+Based on the sources, there are two distinct "Question 3" sections: one regarding **Pixel Coordinate Frames** (Exercise 1) and another regarding **Bayesian Decision Theory** (Exercise 5).
+
+Below is the Python code for a **Streamlit** application that provides interactive solvers and mathematical explanations for both tasks.
+
+```python
+
+```
+
+### **How this solves the tasks drawing from the sources:**
+
+#### **1. Exercise 1, Question 3 (Pixel Coordinates)**
+*   **Formula Derivation:** The application implements the formula requested in Source for part (a). It transforms normalized coordinates ($x_n, y_n$) into pixel units ($u, v$) using the density factors $m_u, m_v$ and the principal point offset $(u_0, v_0)$.
+*   **Skew Handling:** For part (b), it incorporates the skew angle $\theta$ between the axes as mentioned in Source.
+*   **Interactive Input:** Users can input specific values for $m_u, m_v, u_0,$ and $v_0$ to see how the final pixel position changes.
+
+#### **2. Exercise 5, Question 3 (Bayesian Decision Making)**
+*   **Posterior Probability:** The page displays the Bayesian posterior probability formula exactly as written in Source.
+*   **Decision Boundary Logic:** 
+    *   It explains that if class conditional distributions are Gaussian, the boundary is generally a **quadratic surface** because of the exponent in the Gaussian density function.
+    *   It explains the simplification to a **hyperplane** (linear boundary) when covariance matrices are equal ($\Sigma_1 = \Sigma_2$), fulfilling the requirement of part (b) in Source.
+*   **Visualization:** It provides a conceptual demonstration of how changing covariance structures (equal vs. unequal) shifts the nature of the boundary between two classes.
+
+https://chatgpt.com/c/697368fb-8594-832a-a39e-4e006389fb32
+
 Yes — this is an **excellent candidate** for a unified, explainable **Streamlit Machine Vision Lab App** 🚀
 Given your strong background (ABSA dashboards, OCR pipelines, experiment orchestration), this fits perfectly with how you already structure interactive tooling.
 
@@ -502,67 +550,7 @@ matplotlib
 # 🧮 core/transforms.py
 
 ```python
-import numpy as np
-import cv2
 
-# -----------------------------
-# Affine Least Squares Estimator
-# -----------------------------
-
-def estimate_affine_ls(src, dst):
-    """
-    src: Nx2 source points
-    dst: Nx2 destination points
-    """
-    N = src.shape[0]
-    M = np.hstack([src, np.ones((N,1))])   # Nx3
-
-    bx = dst[:,0]
-    by = dst[:,1]
-
-    MtM = M.T @ M
-    MtM_inv = np.linalg.inv(MtM)
-
-    ax = MtM_inv @ M.T @ bx
-    ay = MtM_inv @ M.T @ by
-
-    H = np.array([
-        [ax[0], ax[1], ax[2]],
-        [ay[0], ay[1], ay[2]],
-        [0,     0,     1]
-    ])
-
-    debug = {
-        "M": M,
-        "MtM": MtM,
-        "MtM_inv": MtM_inv,
-        "ax": ax,
-        "ay": ay
-    }
-
-    return H, debug
-
-
-# -----------------------------
-# Homography Estimation
-# -----------------------------
-
-def estimate_homography(src, dst):
-    H, _ = cv2.findHomography(src.astype(np.float32),
-                              dst.astype(np.float32),
-                              method=0)
-    return H
-
-
-# -----------------------------
-# Apply Transformation
-# -----------------------------
-
-def apply_transform(points, H):
-    pts_h = np.hstack([points, np.ones((points.shape[0],1))])
-    out = (H @ pts_h.T).T
-    out = out[:, :2] / out[:, 2:]
-    return out
 ```
 
 ---
@@ -572,171 +560,7 @@ def apply_transform(points, H):
 # 🚀 app.py — Full Streamlit App
 
 ```python
-import streamlit as st
-import numpy as np
-import matplotlib.pyplot as plt
 
-from core.transforms import (
-    estimate_affine_ls,
-    estimate_homography,
-    apply_transform
-)
-
-st.set_page_config(layout="wide")
-st.title("📐 Affine Transformation Estimation & Model Comparison")
-
-st.markdown("""
-This app demonstrates:
-
-✅ Least Squares Affine Estimation  
-✅ Matrix Construction (M, MᵀM, inverse)  
-✅ Point Mapping Visualization  
-✅ Affine vs Homography Comparison  
-""")
-
-# ------------------------------------------------------
-# Input Points
-# ------------------------------------------------------
-
-st.sidebar.header("📌 Input Point Correspondences")
-
-default_src = np.array([
-    [-1,  1],
-    [ 1,  1],
-    [ 1, -1],
-    [-1, -1]
-], dtype=float)
-
-default_dst = np.array([
-    [ 1, 2],
-    [ 3, 2],
-    [-1, 0],
-    [-3, 0]
-], dtype=float)
-
-def edit_points(label, pts):
-    st.sidebar.subheader(label)
-    out = []
-    for i,p in enumerate(pts):
-        x = st.sidebar.number_input(f"{label} P{i+1} x", value=float(p[0]), key=f"{label}{i}x")
-        y = st.sidebar.number_input(f"{label} P{i+1} y", value=float(p[1]), key=f"{label}{i}y")
-        out.append([x,y])
-    return np.array(out)
-
-src = edit_points("Source", default_src)
-dst = edit_points("Target", default_dst)
-
-# ------------------------------------------------------
-# Estimation
-# ------------------------------------------------------
-
-H_affine, dbg = estimate_affine_ls(src, dst)
-H_homo = estimate_homography(src, dst)
-
-pred_affine = apply_transform(src, H_affine)
-pred_homo   = apply_transform(src, H_homo)
-
-# ------------------------------------------------------
-# Visualization
-# ------------------------------------------------------
-
-st.subheader("📊 Point Mapping Visualization")
-
-fig, ax = plt.subplots(figsize=(7,7))
-
-ax.scatter(src[:,0], src[:,1], c="blue", label="Source")
-ax.scatter(dst[:,0], dst[:,1], c="green", label="Target")
-ax.scatter(pred_affine[:,0], pred_affine[:,1], 
-           c="red", marker="x", label="Affine Prediction")
-ax.scatter(pred_homo[:,0], pred_homo[:,1], 
-           c="purple", marker="+", label="Homography Prediction")
-
-for i in range(len(src)):
-    ax.plot([src[i,0], pred_affine[i,0]],
-            [src[i,1], pred_affine[i,1]], 'r--', alpha=0.5)
-
-ax.axhline(0,color="gray",alpha=0.3)
-ax.axvline(0,color="gray",alpha=0.3)
-ax.set_aspect("equal")
-ax.legend()
-st.pyplot(fig)
-
-# ------------------------------------------------------
-# Matrix Inspection
-# ------------------------------------------------------
-
-st.subheader("🧮 Least Squares Matrices")
-
-c1, c2 = st.columns(2)
-
-with c1:
-    st.markdown("### Design Matrix M")
-    st.code(dbg["M"])
-
-    st.markdown("### MᵀM")
-    st.code(dbg["MtM"])
-
-with c2:
-    st.markdown("### (MᵀM)⁻¹")
-    st.code(dbg["MtM_inv"])
-
-    st.markdown("### Parameters")
-    st.write("a₁ a₂ a₃ =", dbg["ax"])
-    st.write("a₄ a₅ a₆ =", dbg["ay"])
-
-st.markdown("### ✅ Affine Matrix")
-st.latex(rf"""
-H =
-\begin{{bmatrix}}
-{dbg["ax"][0]:.2f} & {dbg["ax"][1]:.2f} & {dbg["ax"][2]:.2f} \\
-{dbg["ay"][0]:.2f} & {dbg["ay"][1]:.2f} & {dbg["ay"][2]:.2f} \\
-0 & 0 & 1
-\end{{bmatrix}}
-""")
-
-# ------------------------------------------------------
-# Error Metrics
-# ------------------------------------------------------
-
-affine_err = np.linalg.norm(dst - pred_affine, axis=1).mean()
-homo_err   = np.linalg.norm(dst - pred_homo, axis=1).mean()
-
-st.subheader("📏 Mean Reprojection Error")
-
-c1, c2 = st.columns(2)
-c1.metric("Affine Error", f"{affine_err:.4f}")
-c2.metric("Homography Error", f"{homo_err:.4f}")
-
-# ------------------------------------------------------
-# Explainability Section
-# ------------------------------------------------------
-
-st.subheader("🧠 Model Comparison")
-
-st.markdown("""
-### 🔹 Affine Model
-- 6 Degrees of Freedom
-- Preserves parallel lines
-- Robust for weak perspective
-- Less sensitive to noise
-
-### 🔹 Homography Model
-- 8 Degrees of Freedom
-- Models perspective distortion
-- Can overfit with small datasets
-- Requires at least 4 correspondences
-
-### ✅ Practical Guidance
-Use **Affine** when:
-- Object is far from camera
-- Scene is approximately planar
-- Perspective distortion is small
-
-Use **Homography** when:
-- Strong perspective effects exist
-- Plane is tilted significantly
-- Camera is close to object
-""")
 ```
 
 ---
