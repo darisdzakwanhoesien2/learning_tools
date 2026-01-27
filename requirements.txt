@@ -1,37 +1,34 @@
-# Core
-python>=3.9
-
 # Web App
-streamlit>=1.30.0
+streamlit
 
 # Numerical Computing
-numpy>=1.24.0
-scipy>=1.10.0
+numpy
+scipy
 
 # Data Handling
-pandas>=2.0.0
+pandas
 
 # Visualization
-matplotlib>=3.7.0
-plotly>=5.18.0
+matplotlib
+plotly
 
 # Computer Vision
-opencv-python>=4.8.0
+opencv-python
 
 # Machine Learning (optional but useful)
-scikit-learn>=1.3.0
+scikit-learn
 
 # Image Processing Utilities
-Pillow>=10.0.0
+Pillow
 
 # Progress Bars (you use tqdm in other projects)
-tqdm>=4.66.0
+tqdm
 
 # Serialization / Config
-pyyaml>=6.0
+pyyaml
 
 # Scientific utilities
-sympy>=1.12
+sympy
 
 # Development
-python-dotenv>=1.0.0
+python-dotenv
