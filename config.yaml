@@ -1,0 +1,6 @@
+execution:
+  max_runtime: 30          # seconds
+  memory_limit: 512        # MB
+  sandbox: true            # Enable restricted execution
+outputs:
+  plots_dir: "data/outputs/plots"

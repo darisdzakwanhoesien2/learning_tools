@@ -4,6 +4,8 @@ https://notebooklm.google.com/notebook/b8888570-6bb2-4efd-8d5d-4727a920c97b
 
 https://chatgpt.com/c/6973c40e-9bf8-832c-b61c-79c5b57e9bf3
 
+
+
 Based on the sources, there are two "Question 1" sections: one regarding **Pinhole Camera Models** (Exercise 1) and another regarding **Nearest Neighbor/Mean Classification** (Exercise 5).
 
 Below is a Python script using **Streamlit** to create a multi-page interactive application that solves both tasks using the data and formulas provided in the sources.
@@ -607,3 +609,88 @@ I can also add:
 
 Just say the word 👍
 # learning_tools
+
+.lmstudio/conversations/1769625797946.conversation.json
+Here’s a well-structured project directory for your Streamlit-based execution and retrieval system for Python code snippets like yours:
+
+```
+streamlit_code_executor/
+│
+├── src/                  # Main source code directory
+│   ├── __init__.py       # Makes it a Python package (optional)
+│   └── executor.py       # Core logic to store, execute, and retrieve code
+│
+├── models/               # Optional: Store intermediate results/models
+│   └── ...
+│
+├── data/                 # Input/output data storage (if needed)
+│   ├── scripts/
+│   │   └── your_script.py  # Example saved script
+│   └── outputs/
+│       └── plots/        # Outputs like plots, logs, etc.
+│
+├── config.yaml           # Configuration settings (e.g., paths, limits)
+│
+├── requirements.txt      # Dependencies (Streamlit + numpy, matplotlib, etc.)
+│
+└── app.py                # Streamlit UI wrapper
+```
+
+---
+
+### Key Components Explained:
+1. **`executor.py`** (Core Logic):
+   - Handles storing code snippets in a database/JSON file.
+   - Executes the code with `subprocess` or `IPython` for safety.
+   - Retrieves outputs (plots, logs) and saves them.
+
+2. **`app.py`** (Streamlit UI):
+   ```python
+   import streamlit as st
+   from src.executor import CodeExecutor
+
+   # Initialize executor
+   executor = CodeExecutor()
+
+   st.title("Code Executor")
+   code_snippet = st.text_area("Paste your Python code here:")
+
+   if st.button("Execute"):
+       with st.spinner("Running..."):
+           result, output_path = executor.execute(code_snippet)
+           st.success(f"Executed! Output saved to: {output_path}")
+           st.image(output_path)  # Show plot if applicable
+   ```
+
+3. **Dependencies (`requirements.txt`)**:
+   ```
+   streamlit==1.28.0
+   numpy>=1.24.0
+   matplotlib>=3.7.0
+   ipykernel>=6.0.0  # For safe execution
+   ```
+
+---
+
+### Directory Structure for Your Example Code:
+Since your code generates a plot, add this to `data/outputs/plots/`:
+```
+streamlit_code_executor/
+├── data/
+│   └── outputs/
+│       └── plots/
+│           ├── f_x1x2_plot.png  # Saved figure
+│           └── ...
+```
+
+---
+
+### How It Works:
+1. **Store**: User pastes code → saved in `data/scripts/your_script.py`.
+2. **Execute**: Code runs via `executor.execute()` (with sandboxing).
+3. **Retrieve**: Outputs (e.g., plot) are saved and displayed.
+
+---
+**Note**:
+- For safety, use `subprocess.run` with `shell=False` or a restricted environment.
+- Add error handling in `executor.py` to manage crashes gracefully.

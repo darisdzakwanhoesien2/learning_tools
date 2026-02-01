@@ -1,0 +1,212 @@
+--- f(x1,x2).py ---
+
+def f(x1, x2):
+    return 2 * x1**3 - 6 * x1 * x2 + 3 * x2**2
+
+
+Output:
+{'f': <function f at 0x1216ab010>}
+
+==================================================
+--- plot_code.py ---
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+x1 = np.linspace(-5, 5, 100)
+x2 = np.linspace(-5, 5, 100)
+x1, x2 = np.meshgrid(x1, x2)
+
+z = f(x1, x2)  # Assuming 'f' is defined elsewhere
+
+fig = plt.figure(figsize=(10, 7))
+ax = fig.add_subplot(111, projection='3d')
+surf = ax.plot_surface(x1, x2, z, cmap='viridis', edgecolor='k', alpha=0.8)
+plt.show()
+
+
+Output:
+None
+
+==================================================
+--- plot_code.py ---
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+x1 = np.linspace(-5, 5, 100)
+x2 = np.linspace(-5, 5, 100)
+x1, x2 = np.meshgrid(x1, x2)
+
+z = f(x1, x2)  # Assuming 'f' is defined elsewhere
+
+fig = plt.figure(figsize=(10, 7))
+ax = fig.add_subplot(111, projection='3d')
+surf = ax.plot_surface(x1, x2, z, cmap='viridis', edgecolor='k', alpha=0.8)
+plt.show()
+
+
+Output:
+None
+
+==================================================
+--- f(x1,x2).py ---
+
+def f(x1, x2):
+    return 2 * x1**3 - 6 * x1 * x2 + 3 * x2**2
+
+
+Output:
+{'f': <function f at 0x141591d80>}
+
+==================================================
+--- plot_code.py ---
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Define the function
+def f(x1, x2):
+    return 2 * x1**3 - 6 * x1 * x2 + 3 * x2**2
+
+# Generate x1 and x2 values
+x1 = np.linspace(-5, 5, 100)
+x2 = np.linspace(-5, 5, 100)
+x1, x2 = np.meshgrid(x1, x2)
+
+# Calculate f(x1, x2)
+z = f(x1, x2)
+
+# Create the plot
+fig = plt.figure(figsize=(10, 7))
+ax = fig.add_subplot(111, projection='3d')
+
+# Plot the surface
+surf = ax.plot_surface(x1, x2, z, cmap='viridis', edgecolor='k', alpha=0.8)
+
+# Add labels and title
+ax.set_xlabel('x1')
+ax.set_ylabel('x2')
+ax.set_zlabel('f(x1, x2)')
+ax.set_title('3D Surface Plot of f(x1, x2)')
+
+# Add color bar
+fig.colorbar(surf, shrink=0.5, aspect=10)
+
+# Show the plot
+plt.show()
+
+Output:
+{'np': <module 'numpy' from '/Users/darisdzakwanhoesien/.pyenv/versions/3.10.11/lib/python3.10/site-packages/numpy/__init__.py'>, 'plt': <module 'matplotlib.pyplot' from '/Users/darisdzakwanhoesien/.pyenv/versions/3.10.11/lib/python3.10/site-packages/matplotlib/pyplot.py'>, 'f': <function f at 0x10665f400>, 'x1': array([[-5.       , -4.8989899, -4.7979798, ...,  4.7979798,  4.8989899,
+         5.       ],
+       [-5.       , -4.8989899, -4.7979798, ...,  4.7979798,  4.8989899,
+         5.       ],
+       [-5.       , -4.8989899, -4.7979798, ...,  4.7979798,  4.8989899,
+         5.       ],
+       ...,
+       [-5.       , -4.8989899, -4.7979798, ...,  4.7979798,  4.8989899,
+         5.       ],
+       [-5.       , -4.8989899, -4.7979798, ...,  4.7979798,  4.8989899,
+         5.       ],
+       [-5.       , -4.8989899, -4.7979798, ...,  4.7979798,  4.8989899,
+         5.       ]], shape=(100, 100)), 'x2': array([[-5.       , -5.       , -5.       , ..., -5.       , -5.       ,
+        -5.       ],
+       [-4.8989899, -4.8989899, -4.8989899, ..., -4.8989899, -4.8989899,
+        -4.8989899],
+       [-4.7979798, -4.7979798, -4.7979798, ..., -4.7979798, -4.7979798,
+        -4.7979798],
+       ...,
+       [ 4.7979798,  4.7979798,  4.7979798, ...,  4.7979798,  4.7979798,
+         4.7979798],
+       [ 4.8989899,  4.8989899,  4.8989899, ...,  4.8989899,  4.8989899,
+         4.8989899],
+       [ 5.       ,  5.       ,  5.       , ...,  5.       ,  5.       ,
+         5.       ]], shape=(100, 100)), 'z': array([[-325.        , -307.12221181, -289.84423873, ...,  439.84423873,
+         457.12221181,  475.        ],
+       [-324.96939088, -307.15282093, -289.9360661 , ...,  433.93667828,
+         451.15343312,  468.97000306],
+       [-324.87756351, -307.12221181, -289.96667522, ...,  428.09033607,
+         445.24587266,  463.00122436],
+       ...,
+       [ -36.99877564,  -25.05915702,  -13.71935352, ...,  151.84301437,
+         163.18281787,  175.12243649],
+       [ -31.02999694,  -19.15159657,   -7.87301131, ...,  151.87362349,
+         163.15220875,  175.03060912],
+       [ -25.        ,  -13.18281787,   -1.96545086, ...,  151.96545086,
+         163.18281787,  175.        ]], shape=(100, 100)), 'fig': <Figure size 1000x700 with 2 Axes>, 'ax': <Axes3D: title={'center': '3D Surface Plot of f(x1, x2)'}, xlabel='x1', ylabel='x2', zlabel='f(x1, x2)'>, 'surf': <mpl_toolkits.mplot3d.art3d.Poly3DCollection object at 0x14680f2b0>}
+
+==================================================
+--- plot_code.py ---
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Define the function
+def f(x1, x2):
+    return 2 * x1**3 - 6 * x1 * x2 + 3 * x2**2
+
+# Generate x1 and x2 values
+x1 = np.linspace(-5, 5, 100)
+x2 = np.linspace(-5, 5, 100)
+x1, x2 = np.meshgrid(x1, x2)
+
+# Calculate f(x1, x2)
+z = f(x1, x2)
+
+# Create the plot
+fig = plt.figure(figsize=(10, 7))
+ax = fig.add_subplot(111, projection='3d')
+
+# Plot the surface
+surf = ax.plot_surface(x1, x2, z, cmap='viridis', edgecolor='k', alpha=0.8)
+
+# Add labels and title
+ax.set_xlabel('x1')
+ax.set_ylabel('x2')
+ax.set_zlabel('f(x1, x2)')
+ax.set_title('3D Surface Plot of f(x1, x2)')
+
+# Add color bar
+fig.colorbar(surf, shrink=0.5, aspect=10)
+
+# Show the plot
+plt.show()
+
+Output:
+{'np': <module 'numpy' from '/Users/darisdzakwanhoesien/.pyenv/versions/3.10.11/lib/python3.10/site-packages/numpy/__init__.py'>, 'plt': <module 'matplotlib.pyplot' from '/Users/darisdzakwanhoesien/.pyenv/versions/3.10.11/lib/python3.10/site-packages/matplotlib/pyplot.py'>, 'f': <function f at 0x146822710>, 'x1': array([[-5.       , -4.8989899, -4.7979798, ...,  4.7979798,  4.8989899,
+         5.       ],
+       [-5.       , -4.8989899, -4.7979798, ...,  4.7979798,  4.8989899,
+         5.       ],
+       [-5.       , -4.8989899, -4.7979798, ...,  4.7979798,  4.8989899,
+         5.       ],
+       ...,
+       [-5.       , -4.8989899, -4.7979798, ...,  4.7979798,  4.8989899,
+         5.       ],
+       [-5.       , -4.8989899, -4.7979798, ...,  4.7979798,  4.8989899,
+         5.       ],
+       [-5.       , -4.8989899, -4.7979798, ...,  4.7979798,  4.8989899,
+         5.       ]], shape=(100, 100)), 'x2': array([[-5.       , -5.       , -5.       , ..., -5.       , -5.       ,
+        -5.       ],
+       [-4.8989899, -4.8989899, -4.8989899, ..., -4.8989899, -4.8989899,
+        -4.8989899],
+       [-4.7979798, -4.7979798, -4.7979798, ..., -4.7979798, -4.7979798,
+        -4.7979798],
+       ...,
+       [ 4.7979798,  4.7979798,  4.7979798, ...,  4.7979798,  4.7979798,
+         4.7979798],
+       [ 4.8989899,  4.8989899,  4.8989899, ...,  4.8989899,  4.8989899,
+         4.8989899],
+       [ 5.       ,  5.       ,  5.       , ...,  5.       ,  5.       ,
+         5.       ]], shape=(100, 100)), 'z': array([[-325.        , -307.12221181, -289.84423873, ...,  439.84423873,
+         457.12221181,  475.        ],
+       [-324.96939088, -307.15282093, -289.9360661 , ...,  433.93667828,
+         451.15343312,  468.97000306],
+       [-324.87756351, -307.12221181, -289.96667522, ...,  428.09033607,
+         445.24587266,  463.00122436],
+       ...,
+       [ -36.99877564,  -25.05915702,  -13.71935352, ...,  151.84301437,
+         163.18281787,  175.12243649],
+       [ -31.02999694,  -19.15159657,   -7.87301131, ...,  151.87362349,
+         163.15220875,  175.03060912],
+       [ -25.        ,  -13.18281787,   -1.96545086, ...,  151.96545086,
+         163.18281787,  175.        ]], shape=(100, 100)), 'fig': <Figure size 1000x700 with 2 Axes>, 'ax': <Axes3D: title={'center': '3D Surface Plot of f(x1, x2)'}, xlabel='x1', ylabel='x2', zlabel='f(x1, x2)'>, 'surf': <mpl_toolkits.mplot3d.art3d.Poly3DCollection object at 0x1468b08e0>}
+
+==================================================
