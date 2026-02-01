@@ -1,3 +1,921 @@
+import streamlit as st
+import sympy as sp
+import json
+from pathlib import Path
+
+# ======================================================
+# Persistence
+# ======================================================
+
+SAVE_DIR = Path(__file__).parent / "saved_problems"
+SAVE_DIR.mkdir(exist_ok=True)
+
+# ======================================================
+# Helpers
+# ======================================================
+
+def parse_expr(expr, sym):
+    return sp.sympify(expr, locals=sym)
+
+
+def parse_constraints(text, sym):
+    """
+    Parse constraints of the form:
+      g(x) >= 0
+      h(x) = 0
+
+    We KEEP the constraint exactly as written.
+    """
+    constraints = []
+    names = []
+    types = []
+    originals = []
+
+    for i, c in enumerate(text.split(",")):
+        c = c.strip()
+
+        if ">=" in c:
+            lhs, rhs = c.split(">=")
+            g = parse_expr(lhs, sym) - parse_expr(rhs, sym)
+            constraints.append(g)
+            names.append(f"g{i+1}(x)")
+            types.append("ineq")
+            originals.append(c)
+
+        elif "=" in c:
+            lhs, rhs = c.split("=")
+            h = parse_expr(lhs, sym) - parse_expr(rhs, sym)
+            constraints.append(h)
+            names.append(f"h{i+1}(x)")
+            types.append("eq")
+            originals.append(c)
+
+        else:
+            raise ValueError(f"Invalid constraint format: {c}")
+
+    return constraints, names, types, originals
+
+
+# ======================================================
+# Streamlit App
+# ======================================================
+
+def main():
+    st.set_page_config(page_title="KKT Solver", layout="centered")
+    st.title("📘 Step-by-Step KKT Solver (Exact Lecture Form)")
+
+    # --------------------------------------------------
+    # Session State
+    # --------------------------------------------------
+    if "objective" not in st.session_state:
+        st.session_state.objective = (
+            "2*x1**2 + 2*x1*x2 + x2**2 - 10*x1 - 10*x2"
+        )
+
+    if "constraints" not in st.session_state:
+        st.session_state.constraints = (
+            "5 - x1**2 - x2**2 >= 0, 6 - 3*x1 - x2 >= 0"
+        )
+
+    # --------------------------------------------------
+    # Symbols
+    # --------------------------------------------------
+    x1, x2 = sp.symbols("x1 x2")
+    sym = {"x1": x1, "x2": x2}
+
+    # --------------------------------------------------
+    # Save / Load
+    # --------------------------------------------------
+    st.subheader("📌 Save / Load Problem")
+
+    save_name = st.text_input("Problem name", "example_problem")
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if st.button("💾 Save"):
+            data = {
+                "objective": st.session_state.objective,
+                "constraints": st.session_state.constraints
+            }
+            with open(SAVE_DIR / f"{save_name}.json", "w") as f:
+                json.dump(data, f, indent=2)
+            st.success("Problem saved")
+
+    with col2:
+        files = [p.stem for p in SAVE_DIR.glob("*.json")]
+        selected = st.selectbox("Load problem", ["—"] + files)
+
+        if selected != "—" and st.button("📂 Load"):
+            with open(SAVE_DIR / f"{selected}.json") as f:
+                data = json.load(f)
+            st.session_state.objective = data["objective"]
+            st.session_state.constraints = data["constraints"]
+            st.experimental_rerun()
+
+    st.divider()
+
+    # --------------------------------------------------
+    # Inputs
+    # --------------------------------------------------
+    f_str = st.text_input(
+        "Objective (minimize)",
+        value=st.session_state.objective
+    )
+
+    cons_str = st.text_area(
+        "Constraints (>= 0 form)",
+        value=st.session_state.constraints
+    )
+
+    st.session_state.objective = f_str
+    st.session_state.constraints = cons_str
+
+    # --------------------------------------------------
+    # Solve
+    # --------------------------------------------------
+    if st.button("🧮 Solve Step-by-Step"):
+        st.divider()
+
+        f = parse_expr(f_str, sym)
+        g, g_names, g_types, originals = parse_constraints(cons_str, sym)
+
+        lambdas = sp.symbols(f"\\lambda_1:{len(g)+1}")
+
+        # ==================================================
+        # a) KKT CONDITIONS
+        # ==================================================
+        st.header("a) Write down the KKT conditions")
+
+        # --------------------------------------------------
+        # Step 1: Original Problem
+        # --------------------------------------------------
+        st.subheader("Step 1: Original Problem")
+
+        st.latex(r"\min\; " + sp.latex(f))
+        st.markdown("**Subject to:**")
+        for orig in originals:
+            st.latex(orig)
+
+        # --------------------------------------------------
+        # Step 2: Lagrangian (YOUR EXACT FORM)
+        # --------------------------------------------------
+        st.subheader("Step 2: Form the Lagrangian")
+
+        L = f
+        for lam, gi in zip(lambdas, g):
+            L -= lam * gi   # <-- EXACTLY AS YOU REQUESTED
+
+        st.latex(r"\mathcal{L}(x,\lambda) = " + sp.latex(L))
+
+        # --------------------------------------------------
+        # Step 3: Gradients
+        # --------------------------------------------------
+        st.subheader("Step 3: Gradients")
+
+        grad_L = [sp.diff(L, x1), sp.diff(L, x2)]
+
+        st.latex(r"\frac{\partial \mathcal{L}}{\partial x_1} = " + sp.latex(grad_L[0]))
+        st.latex(r"\frac{\partial \mathcal{L}}{\partial x_2} = " + sp.latex(grad_L[1]))
+
+        # --------------------------------------------------
+        # Step 4: KKT Conditions
+        # --------------------------------------------------
+        st.subheader("Step 4: The KKT Conditions")
+
+        st.markdown("**1. Stationarity**")
+        for eq in grad_L:
+            st.latex(sp.latex(eq) + " = 0")
+
+        st.markdown("**2. Primal Feasibility**")
+        for name, gi in zip(g_names, g):
+            st.latex(name + "(x) = " + sp.latex(gi) + r"\ge 0")
+
+        st.markdown("**3. Dual Feasibility**")
+        for lam in lambdas:
+            st.latex(sp.latex(lam) + r"\ge 0")
+
+        st.markdown("**4. Complementary Slackness**")
+        for lam, gi in zip(lambdas, g):
+            st.latex(sp.latex(lam * gi) + " = 0")
+
+        # --------------------------------------------------
+        # Inactive Constraint Case
+        # --------------------------------------------------
+        st.divider()
+        st.header("b) Case: All Constraints Inactive")
+
+        inactive = {lam: 0 for lam in lambdas}
+        st.latex(r"\lambda_1 = \cdots = \lambda_m = 0")
+
+        eqs = [eq.subs(inactive) for eq in grad_L]
+        sol = sp.solve(eqs, (x1, x2), dict=True)
+
+        if not sol:
+            st.error("No stationary point found.")
+            return
+
+        sol = sol[0]
+
+        st.markdown("**Candidate point:**")
+        st.latex(
+            r"x^* = \left(" +
+            sp.latex(sol[x1]) + "," +
+            sp.latex(sol[x2]) + r"\right)"
+        )
+
+        # --------------------------------------------------
+        # Feasibility Check
+        # --------------------------------------------------
+        st.subheader("Feasibility Check")
+
+        violated = False
+        for name, gi in zip(g_names, g):
+            val = gi.subs(sol)
+            st.latex(name + r"(x^*) = " + sp.latex(val))
+            if val < 0:
+                violated = True
+                st.markdown("❌ Constraint violated")
+
+        if violated:
+            st.error(
+                "Conclusion: The unconstrained minimum is **not feasible**.\n\n"
+                "The solution must lie on the **boundary of the feasible region**."
+            )
+        else:
+            st.success("Unconstrained minimum is feasible.")
+
+# ======================================================
+if __name__ == "__main__":
+    main()
+
+
+# import streamlit as st
+# import sympy as sp
+# import json
+# from pathlib import Path
+
+# # ======================================================
+# # Persistence
+# # ======================================================
+
+# SAVE_DIR = Path(__file__).parent / "saved_problems"
+# SAVE_DIR.mkdir(exist_ok=True)
+
+# # ======================================================
+# # Helpers
+# # ======================================================
+
+# def parse_expr(expr, sym):
+#     return sp.sympify(expr, locals=sym)
+
+
+# def normalize_constraint(text, sym):
+#     """
+#     Normalize constraints to standard KKT form: c(x) <= 0
+#     Returns:
+#       - c(x)
+#       - type: 'ineq' or 'eq'
+#       - original string
+#     """
+#     text = text.strip()
+
+#     if "<=" in text:
+#         lhs, rhs = text.split("<=")
+#         return parse_expr(lhs, sym) - parse_expr(rhs, sym), "ineq", text
+
+#     if ">=" in text:
+#         lhs, rhs = text.split(">=")
+#         return parse_expr(rhs, sym) - parse_expr(lhs, sym), "ineq", text
+
+#     if "=" in text:
+#         lhs, rhs = text.split("=")
+#         return parse_expr(lhs, sym) - parse_expr(rhs, sym), "eq", text
+
+#     raise ValueError(f"Invalid constraint: {text}")
+
+
+# def parse_constraints(text, sym):
+#     constraints, names, types, originals = [], [], [], []
+
+#     for i, c in enumerate(text.split(",")):
+#         ci, t, orig = normalize_constraint(c, sym)
+#         constraints.append(ci)
+#         names.append(f"c{i+1}(x)")
+#         types.append(t)
+#         originals.append(orig)
+
+#     return constraints, names, types, originals
+
+
+# # ======================================================
+# # Streamlit App
+# # ======================================================
+
+# def main():
+#     st.set_page_config(page_title="KKT Solver", layout="centered")
+#     st.title("📘 Step-by-Step KKT Solver (Textbook Correct)")
+
+#     # --------------------------------------------------
+#     # Session State
+#     # --------------------------------------------------
+#     if "objective" not in st.session_state:
+#         st.session_state.objective = (
+#             "2*x1**2 + 2*x1*x2 + x2**2 - 10*x1 - 10*x2"
+#         )
+
+#     if "constraints" not in st.session_state:
+#         st.session_state.constraints = (
+#             "5 - x1**2 - x2**2 >= 0, 6 - 3*x1 - x2 >= 0"
+#         )
+
+#     # --------------------------------------------------
+#     # Symbols
+#     # --------------------------------------------------
+#     x1, x2 = sp.symbols("x1 x2")
+#     sym = {"x1": x1, "x2": x2}
+
+#     # --------------------------------------------------
+#     # Save / Load
+#     # --------------------------------------------------
+#     st.subheader("📌 Save / Load Problem")
+
+#     save_name = st.text_input("Problem name", "example_problem")
+#     col1, col2 = st.columns(2)
+
+#     with col1:
+#         if st.button("💾 Save"):
+#             data = {
+#                 "objective": st.session_state.objective,
+#                 "constraints": st.session_state.constraints
+#             }
+#             with open(SAVE_DIR / f"{save_name}.json", "w") as f:
+#                 json.dump(data, f, indent=2)
+#             st.success("Problem saved")
+
+#     with col2:
+#         files = [p.stem for p in SAVE_DIR.glob("*.json")]
+#         selected = st.selectbox("Load problem", ["—"] + files)
+
+#         if selected != "—" and st.button("📂 Load"):
+#             with open(SAVE_DIR / f"{selected}.json") as f:
+#                 data = json.load(f)
+#             st.session_state.objective = data["objective"]
+#             st.session_state.constraints = data["constraints"]
+#             st.experimental_rerun()
+
+#     st.divider()
+
+#     # --------------------------------------------------
+#     # Inputs
+#     # --------------------------------------------------
+#     f_str = st.text_input(
+#         "Objective (minimize)",
+#         value=st.session_state.objective
+#     )
+
+#     cons_str = st.text_area(
+#         "Constraints",
+#         value=st.session_state.constraints
+#     )
+
+#     st.session_state.objective = f_str
+#     st.session_state.constraints = cons_str
+
+#     # --------------------------------------------------
+#     # Solve
+#     # --------------------------------------------------
+#     if st.button("🧮 Solve Step-by-Step"):
+#         st.divider()
+
+#         f = parse_expr(f_str, sym)
+#         c, c_names, c_types, originals = parse_constraints(cons_str, sym)
+#         lambdas = sp.symbols(f"\\lambda_1:{len(c)+1}")
+
+#         # ==================================================
+#         # a) KKT CONDITIONS
+#         # ==================================================
+#         st.header("a) Write down the KKT conditions")
+
+#         # --------------------------------------------------
+#         # Constraint normalization
+#         # --------------------------------------------------
+#         st.subheader("Step 1: Normalize Constraints")
+
+#         st.markdown(
+#             "We first rewrite all constraints in the standard KKT form "
+#             r"$c_i(x) \le 0$."
+#         )
+
+#         for name, orig, ci in zip(c_names, originals, c):
+#             st.latex(
+#                 r"\text{Original: } " + orig +
+#                 r"\quad\Rightarrow\quad " +
+#                 name + "(x)=" + sp.latex(ci) + r"\le 0"
+#             )
+
+#         # --------------------------------------------------
+#         # Lagrangian
+#         # --------------------------------------------------
+#         st.subheader("Step 2: Form the Lagrangian")
+
+#         L = f
+#         for lam, ci in zip(lambdas, c):
+#             L -= lam * ci
+
+#         st.latex(r"\mathcal{L}(x,\lambda)=" + sp.latex(L))
+
+#         # --------------------------------------------------
+#         # Gradients
+#         # --------------------------------------------------
+#         st.subheader("Step 3: Gradients")
+
+#         grad_L = [sp.diff(L, x1), sp.diff(L, x2)]
+#         st.latex(r"\frac{\partial \mathcal{L}}{\partial x_1}=" + sp.latex(grad_L[0]))
+#         st.latex(r"\frac{\partial \mathcal{L}}{\partial x_2}=" + sp.latex(grad_L[1]))
+
+#         # --------------------------------------------------
+#         # KKT Conditions
+#         # --------------------------------------------------
+#         st.subheader("Step 4: The Four KKT Conditions")
+
+#         st.markdown("**1. Stationarity**")
+#         for eq in grad_L:
+#             st.latex(sp.latex(eq) + "=0")
+
+#         st.markdown("**2. Primal Feasibility**")
+#         for name, ci in zip(c_names, c):
+#             st.latex(name + "(x)=" + sp.latex(ci) + r"\le 0")
+
+#         st.markdown("**3. Dual Feasibility**")
+#         for lam in lambdas:
+#             st.latex(sp.latex(lam) + r"\ge 0")
+
+#         st.markdown("**4. Complementary Slackness**")
+#         for lam, ci in zip(lambdas, c):
+#             st.latex(sp.latex(lam * ci) + "=0")
+
+#         # --------------------------------------------------
+#         # Inactive constraint case
+#         # --------------------------------------------------
+#         st.divider()
+#         st.header("b) Case: All Constraints Inactive")
+
+#         inactive = {lam: 0 for lam in lambdas}
+#         st.latex(r"\lambda_1=\cdots=\lambda_m=0")
+
+#         eqs = [eq.subs(inactive) for eq in grad_L]
+#         sol = sp.solve(eqs, (x1, x2), dict=True)
+
+#         if not sol:
+#             st.error("No stationary point found.")
+#             return
+
+#         sol = sol[0]
+
+#         st.markdown("**Candidate point:**")
+#         st.latex(
+#             r"x^*=\left(" +
+#             sp.latex(sol[x1]) + "," +
+#             sp.latex(sol[x2]) + r"\right)"
+#         )
+
+#         # --------------------------------------------------
+#         # Feasibility check
+#         # --------------------------------------------------
+#         st.subheader("Feasibility Check")
+
+#         violated = False
+#         for name, ci in zip(c_names, c):
+#             val = ci.subs(sol)
+#             st.latex(name + r"(x^*)=" + sp.latex(val))
+#             if val > 0:
+#                 violated = True
+#                 st.markdown("❌ Constraint violated")
+
+#         if violated:
+#             st.error(
+#                 "Conclusion: The unconstrained minimum is **not feasible**.\n\n"
+#                 "The solution must lie on the **boundary of the feasible region**."
+#             )
+#         else:
+#             st.success("Unconstrained minimum is feasible.")
+
+# # ======================================================
+# if __name__ == "__main__":
+#     main()
+
+
+# import streamlit as st
+# import sympy as sp
+# import json
+# from pathlib import Path
+
+# # ======================================================
+# # Persistence
+# # ======================================================
+
+# SAVE_DIR = Path(__file__).parent / "saved_problems"
+# SAVE_DIR.mkdir(exist_ok=True)
+
+# # ======================================================
+# # Helpers
+# # ======================================================
+
+# def parse_expr(expr, sym):
+#     return sp.sympify(expr, locals=sym)
+
+
+# def normalize_constraint(text, sym):
+#     """
+#     Normalize constraints to c(x) <= 0
+#     Supports <=, >=, =
+#     """
+#     if "<=" in text:
+#         lhs, rhs = text.split("<=")
+#         return parse_expr(lhs, sym) - parse_expr(rhs, sym), "ineq"
+
+#     if ">=" in text:
+#         lhs, rhs = text.split(">=")
+#         return parse_expr(rhs, sym) - parse_expr(lhs, sym), "ineq"
+
+#     if "=" in text:
+#         lhs, rhs = text.split("=")
+#         return parse_expr(lhs, sym) - parse_expr(rhs, sym), "eq"
+
+#     raise ValueError(f"Invalid constraint: {text}")
+
+
+# def parse_constraints(text, sym):
+#     constraints, names, types = [], [], []
+
+#     for i, c in enumerate(text.split(",")):
+#         g, t = normalize_constraint(c.strip(), sym)
+#         constraints.append(g)
+#         names.append(f"c{i+1}(x)")
+#         types.append(t)
+
+#     return constraints, names, types
+
+
+# # ======================================================
+# # Streamlit App
+# # ======================================================
+
+# def main():
+#     st.set_page_config(page_title="KKT Solver", layout="centered")
+#     st.title("📘 Step-by-Step KKT Solver (with Save / Load)")
+
+#     # --------------------------------------------------
+#     # Session State Init
+#     # --------------------------------------------------
+#     if "objective" not in st.session_state:
+#         st.session_state.objective = (
+#             "2*x1**2 + 2*x1*x2 + x2**2 - 10*x1 - 10*x2"
+#         )
+
+#     if "constraints" not in st.session_state:
+#         st.session_state.constraints = (
+#             "5 - x1**2 + x2**2 >= 0, 6 - 3*x1 - x2 >= 0"
+#         )
+
+#     # --------------------------------------------------
+#     # Symbols
+#     # --------------------------------------------------
+#     x1, x2 = sp.symbols("x1 x2")
+#     sym = {"x1": x1, "x2": x2}
+
+#     # --------------------------------------------------
+#     # Save / Load UI
+#     # --------------------------------------------------
+#     st.subheader("📌 Save / Load Problem")
+
+#     save_name = st.text_input("Problem name", "example_problem")
+
+#     col1, col2 = st.columns(2)
+
+#     with col1:
+#         if st.button("💾 Save"):
+#             data = {
+#                 "objective": st.session_state.objective,
+#                 "constraints": st.session_state.constraints
+#             }
+#             path = SAVE_DIR / f"{save_name}.json"
+#             with open(path, "w") as f:
+#                 json.dump(data, f, indent=2)
+#             st.success(f"Saved as {path.name}")
+
+#     with col2:
+#         files = [p.stem for p in SAVE_DIR.glob("*.json")]
+#         selected = st.selectbox("Load saved problem", ["—"] + files)
+
+#         if selected != "—" and st.button("📂 Load"):
+#             path = SAVE_DIR / f"{selected}.json"
+#             with open(path) as f:
+#                 data = json.load(f)
+
+#             st.session_state.objective = data["objective"]
+#             st.session_state.constraints = data["constraints"]
+#             st.experimental_rerun()
+
+#     st.divider()
+
+#     # --------------------------------------------------
+#     # Inputs
+#     # --------------------------------------------------
+#     f_str = st.text_input(
+#         "Objective (minimize)",
+#         value=st.session_state.objective
+#     )
+
+#     cons_str = st.text_area(
+#         "Constraints",
+#         value=st.session_state.constraints
+#     )
+
+#     # Sync state
+#     st.session_state.objective = f_str
+#     st.session_state.constraints = cons_str
+
+#     # --------------------------------------------------
+#     # Solve
+#     # --------------------------------------------------
+#     if st.button("🧮 Solve Step-by-Step"):
+#         st.divider()
+
+#         f = parse_expr(f_str, sym)
+#         c, c_names, c_types = parse_constraints(cons_str, sym)
+
+#         lambdas = sp.symbols(f"λ1:{len(c)+1}")
+
+#         # ==================================================
+#         # a) KKT CONDITIONS
+#         # ==================================================
+#         st.header("a) Write down the KKT conditions")
+
+#         st.subheader("Step 1: Lagrangian")
+
+#         L = f
+#         for lam, ci in zip(lambdas, c):
+#             L -= lam * ci   # your convention
+
+#         st.latex(r"\mathcal{L}(x,\lambda) = " + sp.latex(L))
+
+#         st.subheader("Step 2: Gradients")
+
+#         grad_L = [sp.diff(L, x1), sp.diff(L, x2)]
+#         st.latex(r"\frac{\partial \mathcal{L}}{\partial x_1} = " + sp.latex(grad_L[0]))
+#         st.latex(r"\frac{\partial \mathcal{L}}{\partial x_2} = " + sp.latex(grad_L[1]))
+
+#         st.subheader("Step 3: The Four KKT Conditions")
+
+#         st.markdown("**1. Stationarity**")
+#         for eq in grad_L:
+#             st.latex(sp.latex(eq) + "=0")
+
+#         st.markdown("**2. Primal Feasibility**")
+#         for name, ci in zip(c_names, c):
+#             st.latex(name + "(x)=" + sp.latex(ci) + r"\le 0")
+
+#         st.markdown("**3. Dual Feasibility**")
+#         for lam in lambdas:
+#             st.latex(sp.latex(lam) + r"\ge 0")
+
+#         st.markdown("**4. Complementary Slackness**")
+#         for lam, ci in zip(lambdas, c):
+#             st.latex(sp.latex(lam * ci) + "=0")
+
+#         # ==================================================
+#         # b) INACTIVE CONSTRAINT CASE
+#         # ==================================================
+#         st.divider()
+#         st.header("b) If all constraints are inactive")
+
+#         inactive = {lam: 0 for lam in lambdas}
+#         st.latex(r"\lambda_1=\cdots=\lambda_m=0")
+
+#         eqs = [eq.subs(inactive) for eq in grad_L]
+#         sol = sp.solve(eqs, (x1, x2), dict=True)
+
+#         if not sol:
+#             st.error("No stationary point found.")
+#             return
+
+#         sol = sol[0]
+
+#         st.subheader("Solve Stationarity Equations")
+#         for i, eq in enumerate(eqs, 1):
+#             st.latex(f"(Eq {i})\\quad " + sp.latex(eq) + "=0")
+
+#         st.markdown("**Candidate point:**")
+#         st.latex(
+#             r"x^*=\left(" +
+#             sp.latex(sol[x1]) + "," +
+#             sp.latex(sol[x2]) + r"\right)"
+#         )
+
+#         # ==================================================
+#         # Feasibility Check
+#         # ==================================================
+#         st.subheader("Check Feasibility")
+
+#         violated = False
+#         for name, ci in zip(c_names, c):
+#             val = ci.subs(sol)
+#             st.latex(name + r"(x^*)=" + sp.latex(val))
+#             if val > 0:
+#                 violated = True
+#                 st.markdown("❌ Constraint violated")
+
+#         if violated:
+#             st.error(
+#                 "Conclusion: The unconstrained minimum is **not feasible**.\n\n"
+#                 "Therefore, the solution must lie on the **boundary**."
+#             )
+#         else:
+#             st.success("Unconstrained minimum is feasible.")
+
+# # ======================================================
+# if __name__ == "__main__":
+#     main()
+
+
+# import streamlit as st
+# import sympy as sp
+
+# # ======================================================
+# # Helpers
+# # ======================================================
+
+# def parse_expr(expr, sym):
+#     return sp.sympify(expr, locals=sym)
+
+
+# def normalize_constraint(text, sym):
+#     """
+#     Converts constraints to c(x) <= 0 form
+#     Returns (c(x), type)
+#     """
+#     if "<=" in text:
+#         lhs, rhs = text.split("<=")
+#         return parse_expr(lhs, sym) - parse_expr(rhs, sym), "ineq"
+
+#     if ">=" in text:
+#         lhs, rhs = text.split(">=")
+#         return parse_expr(rhs, sym) - parse_expr(lhs, sym), "ineq"
+
+#     if "=" in text:
+#         lhs, rhs = text.split("=")
+#         return parse_expr(lhs, sym) - parse_expr(rhs, sym), "eq"
+
+#     raise ValueError(f"Invalid constraint: {text}")
+
+
+# def parse_constraints(text, sym):
+#     constraints = []
+#     names = []
+#     types = []
+
+#     for i, c in enumerate(text.split(",")):
+#         c = c.strip()
+#         g, t = normalize_constraint(c, sym)
+#         constraints.append(g)
+#         names.append(f"c{i+1}(x)")
+#         types.append(t)
+
+#     return constraints, names, types
+
+
+# # ======================================================
+# # Streamlit App
+# # ======================================================
+
+# def main():
+#     st.set_page_config(layout="centered")
+#     st.title("📘 Step-by-Step KKT Solver (Correct & Robust)")
+
+#     # Symbols
+#     x1, x2 = sp.symbols("x1 x2")
+#     sym = {"x1": x1, "x2": x2}
+
+#     # Inputs
+#     f_str = st.text_input(
+#         "Objective (minimize)",
+#         "2*x1**2 + 2*x1*x2 + x2**2 - 10*x1 - 10*x2"
+#     )
+
+#     cons_str = st.text_area(
+#         "Constraints",
+#         "5 - x1**2 + x2**2 >= 0, 6 - 3*x1 - x2 >= 0"
+#     )
+
+#     if st.button("Solve Step-by-Step"):
+#         st.divider()
+
+#         # Parse
+#         f = parse_expr(f_str, sym)
+#         c, c_names, c_types = parse_constraints(cons_str, sym)
+
+#         lambdas = sp.symbols(f"λ1:{len(c)+1}")
+
+#         # ==================================================
+#         # a) KKT CONDITIONS
+#         # ==================================================
+#         st.header("a) Write down the KKT conditions")
+
+#         st.subheader("Step 1: Lagrangian")
+
+#         L = f
+#         for lam, ci in zip(lambdas, c):
+#             L -= lam * ci   # <-- YOUR convention
+
+#         st.latex(r"\mathcal{L}(x,\lambda) = " + sp.latex(L))
+
+#         st.subheader("Step 2: Gradients")
+
+#         grad_L = [sp.diff(L, x1), sp.diff(L, x2)]
+
+#         st.latex(r"\frac{\partial \mathcal{L}}{\partial x_1} = " + sp.latex(grad_L[0]))
+#         st.latex(r"\frac{\partial \mathcal{L}}{\partial x_2} = " + sp.latex(grad_L[1]))
+
+#         st.subheader("Step 3: The Four KKT Conditions")
+
+#         st.markdown("**1. Stationarity**")
+#         for eq in grad_L:
+#             st.latex(sp.latex(eq) + "=0")
+
+#         st.markdown("**2. Primal Feasibility**")
+#         for name, ci in zip(c_names, c):
+#             st.latex(name + "(x)=" + sp.latex(ci) + r"\le 0")
+
+#         st.markdown("**3. Dual Feasibility**")
+#         for lam in lambdas:
+#             st.latex(sp.latex(lam) + r"\ge 0")
+
+#         st.markdown("**4. Complementary Slackness**")
+#         for lam, ci in zip(lambdas, c):
+#             st.latex(sp.latex(lam * ci) + "=0")
+
+#         # ==================================================
+#         # b) INACTIVE CONSTRAINT CASE
+#         # ==================================================
+#         st.divider()
+#         st.header("b) If both constraints are inactive")
+
+#         st.markdown(
+#             "If both constraints are inactive, then all Lagrange multipliers are zero:"
+#         )
+
+#         inactive = {lam: 0 for lam in lambdas}
+#         st.latex(r"\lambda_1=\lambda_2=0")
+
+#         eqs = [eq.subs(inactive) for eq in grad_L]
+
+#         sol = sp.solve(eqs, (x1, x2), dict=True)
+
+#         if not sol:
+#             st.error("No stationary point found.")
+#             return
+
+#         sol = sol[0]
+
+#         st.subheader("Solve Stationarity Equations")
+#         for i, eq in enumerate(eqs, 1):
+#             st.latex(f"(Eq {i})\\quad " + sp.latex(eq) + "=0")
+
+#         st.markdown("**Candidate point:**")
+#         st.latex(
+#             r"x^*=\left(" +
+#             sp.latex(sol[x1]) + "," +
+#             sp.latex(sol[x2]) + r"\right)"
+#         )
+
+#         # ==================================================
+#         # FEASIBILITY CHECK
+#         # ==================================================
+#         st.subheader("Check Feasibility")
+
+#         violated = False
+#         for name, ci in zip(c_names, c):
+#             val = ci.subs(sol)
+#             st.latex(name + r"(x^*)=" + sp.latex(val))
+#             if val > 0:
+#                 violated = True
+#                 st.markdown("❌ Constraint violated")
+
+#         if violated:
+#             st.error(
+#                 "Conclusion: The unconstrained minimum is **not feasible**.\n\n"
+#                 "Therefore, the solution must lie on the **boundary**."
+#             )
+#         else:
+#             st.success("Unconstrained minimum is feasible.")
+
+# # ======================================================
+# if __name__ == "__main__":
+#     main()
+
+
+
 # import streamlit as st
 # from sympy import symbols, Eq, diff, solve
 
@@ -66,202 +984,202 @@
 # if __name__ == "__main__":
 #     main()
 
-import streamlit as st
-import sympy as sp
+# import streamlit as st
+# import sympy as sp
 
-# ======================================================
-# Helpers
-# ======================================================
+# # ======================================================
+# # Helpers
+# # ======================================================
 
-def parse_expression(expr_str, symbols_dict):
-    """Safely parse string into a SymPy expression"""
-    return sp.sympify(expr_str, locals=symbols_dict)
-
-
-def parse_constraints(constraints_str, symbols_dict):
-    """
-    Parse constraints of form:
-    x1 + x2 - 5 <= 0
-    x1 - 1 = 0
-    """
-    constraints = []
-    types = []  # 'ineq' or 'eq'
-
-    for line in constraints_str.split(","):
-        line = line.strip()
-
-        if "<=" in line:
-            lhs, rhs = line.split("<=")
-            g = parse_expression(lhs, symbols_dict) - parse_expression(rhs, symbols_dict)
-            constraints.append(g)
-            types.append("ineq")
-
-        elif "=" in line:
-            lhs, rhs = line.split("=")
-            h = parse_expression(lhs, symbols_dict) - parse_expression(rhs, symbols_dict)
-            constraints.append(h)
-            types.append("eq")
-
-        else:
-            raise ValueError(f"Invalid constraint format: {line}")
-
-    return constraints, types
+# def parse_expression(expr_str, symbols_dict):
+#     """Safely parse string into a SymPy expression"""
+#     return sp.sympify(expr_str, locals=symbols_dict)
 
 
-def is_feasible(sol, constraints, types, tol=1e-6):
-    """Check primal feasibility"""
-    for g, t in zip(constraints, types):
-        val = g.subs(sol)
-        val = float(val)
+# def parse_constraints(constraints_str, symbols_dict):
+#     """
+#     Parse constraints of form:
+#     x1 + x2 - 5 <= 0
+#     x1 - 1 = 0
+#     """
+#     constraints = []
+#     types = []  # 'ineq' or 'eq'
 
-        if t == "ineq" and val > tol:
-            return False
-        if t == "eq" and abs(val) > tol:
-            return False
+#     for line in constraints_str.split(","):
+#         line = line.strip()
 
-    return True
+#         if "<=" in line:
+#             lhs, rhs = line.split("<=")
+#             g = parse_expression(lhs, symbols_dict) - parse_expression(rhs, symbols_dict)
+#             constraints.append(g)
+#             types.append("ineq")
 
+#         elif "=" in line:
+#             lhs, rhs = line.split("=")
+#             h = parse_expression(lhs, symbols_dict) - parse_expression(rhs, symbols_dict)
+#             constraints.append(h)
+#             types.append("eq")
 
-# ======================================================
-# Streamlit App
-# ======================================================
+#         else:
+#             raise ValueError(f"Invalid constraint format: {line}")
 
-def main():
-    st.set_page_config(page_title="KKT Solver", layout="centered")
-    st.title("KKT Optimization Solver (Educational)")
-
-    st.markdown(
-        """
-        This tool **symbolically constructs and solves KKT conditions**  
-        for small constrained optimization problems.
-
-        - Supports ≤ and = constraints
-        - Solves symbolically using SymPy
-        - Intended for **learning and inspection**, not large-scale optimization
-        """
-    )
-
-    # --------------------------------------------------
-    # Inputs
-    # --------------------------------------------------
-    problem_type = st.radio("Problem Type", ["Minimize", "Maximize"])
-
-    n_vars = st.slider("Number of variables", 1, 3, 2)
-    var_names = [f"x{i+1}" for i in range(n_vars)]
-    x = sp.symbols(var_names)
-    symbols_dict = dict(zip(var_names, x))
-
-    obj_str = st.text_input(
-        "Objective function",
-        value="x1**2 + x2**2"
-    )
-
-    constraints_str = st.text_area(
-        "Constraints (comma-separated)",
-        value="x1 + x2 - 5 <= 0, -x1 <= 0"
-    )
-
-    # --------------------------------------------------
-    # Solve Button
-    # --------------------------------------------------
-    if st.button("Solve KKT"):
-        try:
-            # Parse objective
-            f = parse_expression(obj_str, symbols_dict)
-            if problem_type == "Maximize":
-                f = -f
-
-            # Parse constraints
-            constraints, types = parse_constraints(constraints_str, symbols_dict)
-
-            # Lagrange multipliers
-            lambdas = sp.symbols(f"lambda0:{len(constraints)}")
-
-            # Build Lagrangian
-            L = f
-            for lam, g in zip(lambdas, constraints):
-                L += lam * g
-
-            # --------------------------------------------------
-            # Display Lagrangian
-            # --------------------------------------------------
-            st.subheader("Lagrangian")
-            st.latex(sp.latex(L))
-
-            # --------------------------------------------------
-            # KKT Conditions
-            # --------------------------------------------------
-            stationarity = [sp.diff(L, xi) for xi in x]
-            complementary = [
-                lam * g if t == "ineq" else g
-                for lam, g, t in zip(lambdas, constraints, types)
-            ]
-
-            equations = stationarity + complementary
-
-            st.subheader("KKT Conditions")
-
-            st.markdown("**Stationarity**")
-            for eq in stationarity:
-                st.latex(sp.latex(eq))
-
-            st.markdown("**Complementary Slackness / Equality Constraints**")
-            for eq in complementary:
-                st.latex(sp.latex(eq))
-
-            # --------------------------------------------------
-            # Solve System
-            # --------------------------------------------------
-            sol = sp.solve(
-                equations,
-                list(x) + list(lambdas),
-                dict=True
-            )
-
-            if not sol:
-                st.warning("No symbolic KKT solutions found.")
-                return
-
-            # --------------------------------------------------
-            # Display Feasible Solutions
-            # --------------------------------------------------
-            st.subheader("Feasible KKT Solutions")
-
-            found = False
-            for i, s in enumerate(sol, 1):
-                if not is_feasible(s, constraints, types):
-                    continue
-
-                found = True
-
-                primal = {
-                    str(xi): float(s[xi])
-                    for xi in x
-                    if xi in s
-                }
-
-                multipliers = {
-                    str(lam): float(s[lam])
-                    for lam in lambdas
-                    if lam in s
-                }
-
-                st.markdown(f"### Solution {i}")
-                st.markdown("**Primal Variables**")
-                st.json(primal)
-
-                st.markdown("**Lagrange Multipliers**")
-                st.json(multipliers)
-
-            if not found:
-                st.warning("KKT candidates found, but none are feasible.")
-
-        except Exception as e:
-            st.error(f"Error: {e}")
+#     return constraints, types
 
 
-if __name__ == "__main__":
-    main()
+# def is_feasible(sol, constraints, types, tol=1e-6):
+#     """Check primal feasibility"""
+#     for g, t in zip(constraints, types):
+#         val = g.subs(sol)
+#         val = float(val)
+
+#         if t == "ineq" and val > tol:
+#             return False
+#         if t == "eq" and abs(val) > tol:
+#             return False
+
+#     return True
+
+
+# # ======================================================
+# # Streamlit App
+# # ======================================================
+
+# def main():
+#     st.set_page_config(page_title="KKT Solver", layout="centered")
+#     st.title("KKT Optimization Solver (Educational)")
+
+#     st.markdown(
+#         """
+#         This tool **symbolically constructs and solves KKT conditions**  
+#         for small constrained optimization problems.
+
+#         - Supports ≤ and = constraints
+#         - Solves symbolically using SymPy
+#         - Intended for **learning and inspection**, not large-scale optimization
+#         """
+#     )
+
+#     # --------------------------------------------------
+#     # Inputs
+#     # --------------------------------------------------
+#     problem_type = st.radio("Problem Type", ["Minimize", "Maximize"])
+
+#     n_vars = st.slider("Number of variables", 1, 3, 2)
+#     var_names = [f"x{i+1}" for i in range(n_vars)]
+#     x = sp.symbols(var_names)
+#     symbols_dict = dict(zip(var_names, x))
+
+#     obj_str = st.text_input(
+#         "Objective function",
+#         value="x1**2 + x2**2"
+#     )
+
+#     constraints_str = st.text_area(
+#         "Constraints (comma-separated)",
+#         value="x1 + x2 - 5 <= 0, -x1 <= 0"
+#     )
+
+#     # --------------------------------------------------
+#     # Solve Button
+#     # --------------------------------------------------
+#     if st.button("Solve KKT"):
+#         try:
+#             # Parse objective
+#             f = parse_expression(obj_str, symbols_dict)
+#             if problem_type == "Maximize":
+#                 f = -f
+
+#             # Parse constraints
+#             constraints, types = parse_constraints(constraints_str, symbols_dict)
+
+#             # Lagrange multipliers
+#             lambdas = sp.symbols(f"lambda0:{len(constraints)}")
+
+#             # Build Lagrangian
+#             L = f
+#             for lam, g in zip(lambdas, constraints):
+#                 L += lam * g
+
+#             # --------------------------------------------------
+#             # Display Lagrangian
+#             # --------------------------------------------------
+#             st.subheader("Lagrangian")
+#             st.latex(sp.latex(L))
+
+#             # --------------------------------------------------
+#             # KKT Conditions
+#             # --------------------------------------------------
+#             stationarity = [sp.diff(L, xi) for xi in x]
+#             complementary = [
+#                 lam * g if t == "ineq" else g
+#                 for lam, g, t in zip(lambdas, constraints, types)
+#             ]
+
+#             equations = stationarity + complementary
+
+#             st.subheader("KKT Conditions")
+
+#             st.markdown("**Stationarity**")
+#             for eq in stationarity:
+#                 st.latex(sp.latex(eq))
+
+#             st.markdown("**Complementary Slackness / Equality Constraints**")
+#             for eq in complementary:
+#                 st.latex(sp.latex(eq))
+
+#             # --------------------------------------------------
+#             # Solve System
+#             # --------------------------------------------------
+#             sol = sp.solve(
+#                 equations,
+#                 list(x) + list(lambdas),
+#                 dict=True
+#             )
+
+#             if not sol:
+#                 st.warning("No symbolic KKT solutions found.")
+#                 return
+
+#             # --------------------------------------------------
+#             # Display Feasible Solutions
+#             # --------------------------------------------------
+#             st.subheader("Feasible KKT Solutions")
+
+#             found = False
+#             for i, s in enumerate(sol, 1):
+#                 if not is_feasible(s, constraints, types):
+#                     continue
+
+#                 found = True
+
+#                 primal = {
+#                     str(xi): float(s[xi])
+#                     for xi in x
+#                     if xi in s
+#                 }
+
+#                 multipliers = {
+#                     str(lam): float(s[lam])
+#                     for lam in lambdas
+#                     if lam in s
+#                 }
+
+#                 st.markdown(f"### Solution {i}")
+#                 st.markdown("**Primal Variables**")
+#                 st.json(primal)
+
+#                 st.markdown("**Lagrange Multipliers**")
+#                 st.json(multipliers)
+
+#             if not found:
+#                 st.warning("KKT candidates found, but none are feasible.")
+
+#         except Exception as e:
+#             st.error(f"Error: {e}")
+
+
+# if __name__ == "__main__":
+#     main()
 
 
 # import streamlit as st
