@@ -1,0 +1,15 @@
+{
+  "x_star": {
+    "x1": 1.3333333333333333,
+    "x2": 1.3333333333333333
+  },
+  "lambda_star": {
+    "lambda1": 4.444444444444445,
+    "lambda2": 1.7777777777777777
+  },
+  "critical_cone": [
+    "-2*d1 - d2 = 0",
+    "-d1 - 2*d2 = 0"
+  ],
+  "second_order": "Second-order sufficient conditions satisfied"
+}
