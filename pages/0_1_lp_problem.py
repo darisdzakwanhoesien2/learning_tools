@@ -31,6 +31,13 @@ def parse_expr(expr, sym):
     return sp.sympify(expr, locals=sym)
 
 
+def extract_variables(exprs):
+    vars_ = set()
+    for e in exprs:
+        vars_.update(e.free_symbols)
+    return sorted(vars_, key=lambda s: s.name)
+
+
 def parse_lp_constraints(text, sym):
     constraints = []
     for raw in text.split(","):
@@ -50,11 +57,10 @@ def parse_lp_constraints(text, sym):
     return constraints
 
 
-def intersection(e1, e2, x1, x2):
+def intersection_2d(e1, e2, x1, x2):
     sol = sp.solve([e1, e2], (x1, x2), dict=True)
-    if sol:
-        p = sol[0]
-        return float(p[x1]), float(p[x2])
+    if sol and x1 in sol[0] and x2 in sol[0]:
+        return float(sol[0][x1]), float(sol[0][x2])
     return None
 
 
@@ -72,13 +78,7 @@ def main():
     st.title("📘 Linear Programming — Graphical Method")
 
     # --------------------------------------------------
-    # Symbols
-    # --------------------------------------------------
-    x1, x2 = sp.symbols("x1 x2")
-    sym = {"x1": x1, "x2": x2}
-
-    # --------------------------------------------------
-    # Session State Init (CRITICAL)
+    # Session state
     # --------------------------------------------------
     if "solve" not in st.session_state:
         st.session_state.solve = False
@@ -96,16 +96,14 @@ def main():
 
     if selected != "—" and st.button("Load"):
         with open(SAVE_DIR / f"{selected}.json") as f:
-            raw_data = json.load(f)
+            raw = json.load(f)
 
-        problem, results = normalize_loaded_data(raw_data)
-
+        problem, results = normalize_loaded_data(raw)
         st.session_state.objective = problem["objective"]
         st.session_state.constraints = problem["constraints"]
         st.session_state.solution = results
         st.session_state.solve = False
-
-        st.success("LP loaded successfully")
+        st.success("LP loaded")
 
     st.divider()
 
@@ -132,32 +130,52 @@ def main():
     st.session_state.objective = f_str
     st.session_state.constraints = cons_str
 
-    # --------------------------------------------------
-    # Solve button (sets flag ONLY)
-    # --------------------------------------------------
-    if st.button("🧮 Solve graphically"):
+    if st.button("🧮 Solve"):
         st.session_state.solve = True
 
-    # --------------------------------------------------
-    # Solve once flag is set
-    # --------------------------------------------------
     if not st.session_state.solve:
-        if st.session_state.solution:
-            st.subheader("📌 Stored Results")
-            st.json(st.session_state.solution)
         return
 
     st.divider()
 
     # --------------------------------------------------
-    # Solve
+    # Parse problem
     # --------------------------------------------------
-    f = parse_expr(f_str, sym)
-    constraints = parse_lp_constraints(cons_str, sym)
+    f = sp.sympify(f_str)
+    constraints = parse_lp_constraints(cons_str, {})
+    vars_ = extract_variables([f] + constraints)
+
+    # --------------------------------------------------
+    # Dimension check
+    # --------------------------------------------------
+    if len(vars_) > 2:
+        st.error(
+            f"Graphical method is only valid for 2 variables.\n\n"
+            f"This problem has **{len(vars_)} variables**: "
+            + ", ".join(str(v) for v in vars_)
+        )
+
+        st.info(
+            "✅ The problem is still valid.\n\n"
+            "👉 Please solve it using **Simplex** or **KKT conditions**."
+        )
+
+        st.session_state.solution = {
+            "status": "not_solved_graphically",
+            "reason": "dimension > 2",
+            "variables": [str(v) for v in vars_]
+        }
+
+        return
+
+    # --------------------------------------------------
+    # Graphical solution (2D only)
+    # --------------------------------------------------
+    x1, x2 = vars_
 
     st.header("a) Feasible set & vertices")
 
-    xs = np.linspace(0, 6, 400)
+    xs = np.linspace(0, 10, 400)
     fig, ax = plt.subplots()
 
     for c in constraints:
@@ -170,7 +188,7 @@ def main():
 
     points = []
     for c1, c2 in combinations(constraints, 2):
-        p = intersection(c1, c2, x1, x2)
+        p = intersection_2d(c1, c2, x1, x2)
         if p and is_feasible(p, constraints):
             points.append(p)
 
@@ -179,8 +197,6 @@ def main():
     for p in points:
         ax.plot(p[0], p[1], "ro")
 
-    ax.set_xlim(0, 6)
-    ax.set_ylim(0, 6)
     ax.grid()
     st.pyplot(fig)
 
@@ -194,32 +210,29 @@ def main():
 
     optimal = min(candidates, key=lambda d: d["f"])
 
-    st.success(
-        f"Optimal solution: x = {optimal['x']}, f(x) = {optimal['f']:.2f}"
-    )
+    st.success(f"Optimal solution: {optimal}")
 
-    # --------------------------------------------------
-    # Save solution
-    # --------------------------------------------------
     st.session_state.solution = {
         "candidates": candidates,
         "optimal": optimal
     }
 
+    # --------------------------------------------------
+    # Save
+    # --------------------------------------------------
     st.subheader("💾 Save result")
-    save_name = st.text_input("Filename", "lp_problem")
+
+    name = st.text_input("Filename", "lp_problem")
 
     if st.button("Save"):
-        data = {
-            "problem": {
-                "objective": f_str,
-                "constraints": cons_str
-            },
-            "results": st.session_state.solution
-        }
-
-        with open(SAVE_DIR / f"{save_name}.json", "w") as f:
-            json.dump(data, f, indent=2)
+        with open(SAVE_DIR / f"{name}.json", "w") as f:
+            json.dump({
+                "problem": {
+                    "objective": f_str,
+                    "constraints": cons_str
+                },
+                "results": st.session_state.solution
+            }, f, indent=2)
 
         st.success("Saved successfully 🎉")
 
@@ -227,6 +240,237 @@ def main():
 # ======================================================
 if __name__ == "__main__":
     main()
+
+
+# import streamlit as st
+# import sympy as sp
+# import json
+# from pathlib import Path
+# import numpy as np
+# import matplotlib.pyplot as plt
+# from itertools import combinations
+
+# # ======================================================
+# # Persistence
+# # ======================================================
+
+# BASE_DIR = Path(__file__).parent
+# SAVE_DIR = BASE_DIR / "saved_lp_problems"
+# SAVE_DIR.mkdir(exist_ok=True)
+
+# # ======================================================
+# # Helpers
+# # ======================================================
+
+# def normalize_loaded_data(data):
+#     if "problem" in data:
+#         return data["problem"], data.get("results")
+#     return {
+#         "objective": data["objective"],
+#         "constraints": data["constraints"]
+#     }, data.get("results")
+
+
+# def parse_expr(expr, sym):
+#     return sp.sympify(expr, locals=sym)
+
+
+# def parse_lp_constraints(text, sym):
+#     constraints = []
+#     for raw in text.split(","):
+#         c = raw.strip()
+#         if "<=" in c:
+#             lhs, rhs = c.split("<=")
+#             expr = parse_expr(lhs, sym) - parse_expr(rhs, sym)
+#         elif ">=" in c:
+#             lhs, rhs = c.split(">=")
+#             expr = parse_expr(rhs, sym) - parse_expr(lhs, sym)
+#         elif "=" in c:
+#             lhs, rhs = c.split("=")
+#             expr = parse_expr(lhs, sym) - parse_expr(rhs, sym)
+#         else:
+#             expr = parse_expr(c, sym)
+#         constraints.append(expr)
+#     return constraints
+
+
+# def intersection(e1, e2, x1, x2):
+#     sol = sp.solve([e1, e2], (x1, x2), dict=True)
+#     if sol:
+#         p = sol[0]
+#         return float(p[x1]), float(p[x2])
+#     return None
+
+
+# def is_feasible(p, constraints, tol=1e-6):
+#     subs = {"x1": p[0], "x2": p[1]}
+#     return all(float(c.subs(subs)) <= tol for c in constraints)
+
+
+# # ======================================================
+# # Streamlit App
+# # ======================================================
+
+# def main():
+#     st.set_page_config(page_title="LP Solver", layout="centered")
+#     st.title("📘 Linear Programming — Graphical Method")
+
+#     # --------------------------------------------------
+#     # Symbols
+#     # --------------------------------------------------
+#     x1, x2 = sp.symbols("x1 x2")
+#     sym = {"x1": x1, "x2": x2}
+
+#     # --------------------------------------------------
+#     # Session State Init (CRITICAL)
+#     # --------------------------------------------------
+#     if "solve" not in st.session_state:
+#         st.session_state.solve = False
+
+#     if "solution" not in st.session_state:
+#         st.session_state.solution = None
+
+#     # --------------------------------------------------
+#     # Load saved LP
+#     # --------------------------------------------------
+#     st.subheader("📂 Load saved LP")
+
+#     files = sorted(p.stem for p in SAVE_DIR.glob("*.json"))
+#     selected = st.selectbox("Choose saved LP", ["—"] + files)
+
+#     if selected != "—" and st.button("Load"):
+#         with open(SAVE_DIR / f"{selected}.json") as f:
+#             raw_data = json.load(f)
+
+#         problem, results = normalize_loaded_data(raw_data)
+
+#         st.session_state.objective = problem["objective"]
+#         st.session_state.constraints = problem["constraints"]
+#         st.session_state.solution = results
+#         st.session_state.solve = False
+
+#         st.success("LP loaded successfully")
+
+#     st.divider()
+
+#     # --------------------------------------------------
+#     # Defaults
+#     # --------------------------------------------------
+#     if "objective" not in st.session_state:
+#         st.session_state.objective = "3*x1 - 4*x2"
+
+#     if "constraints" not in st.session_state:
+#         st.session_state.constraints = (
+#             "x1 - 3*x2 - 3, "
+#             "-2*x1 - x2 + 2, "
+#             "x1 + x2 - 5, "
+#             "-x1, -x2"
+#         )
+
+#     # --------------------------------------------------
+#     # Inputs
+#     # --------------------------------------------------
+#     f_str = st.text_input("Objective (minimize)", st.session_state.objective)
+#     cons_str = st.text_area("Constraints (≤ 0 form)", st.session_state.constraints)
+
+#     st.session_state.objective = f_str
+#     st.session_state.constraints = cons_str
+
+#     # --------------------------------------------------
+#     # Solve button (sets flag ONLY)
+#     # --------------------------------------------------
+#     if st.button("🧮 Solve graphically"):
+#         st.session_state.solve = True
+
+#     # --------------------------------------------------
+#     # Solve once flag is set
+#     # --------------------------------------------------
+#     if not st.session_state.solve:
+#         if st.session_state.solution:
+#             st.subheader("📌 Stored Results")
+#             st.json(st.session_state.solution)
+#         return
+
+#     st.divider()
+
+#     # --------------------------------------------------
+#     # Solve
+#     # --------------------------------------------------
+#     f = parse_expr(f_str, sym)
+#     constraints = parse_lp_constraints(cons_str, sym)
+
+#     st.header("a) Feasible set & vertices")
+
+#     xs = np.linspace(0, 6, 400)
+#     fig, ax = plt.subplots()
+
+#     for c in constraints:
+#         try:
+#             y = sp.solve(c, x2)
+#             if y:
+#                 ax.plot(xs, [float(y[0].subs(x1, xi)) for xi in xs])
+#         except Exception:
+#             pass
+
+#     points = []
+#     for c1, c2 in combinations(constraints, 2):
+#         p = intersection(c1, c2, x1, x2)
+#         if p and is_feasible(p, constraints):
+#             points.append(p)
+
+#     points = list(set(points))
+
+#     for p in points:
+#         ax.plot(p[0], p[1], "ro")
+
+#     ax.set_xlim(0, 6)
+#     ax.set_ylim(0, 6)
+#     ax.grid()
+#     st.pyplot(fig)
+
+#     # --------------------------------------------------
+#     # Evaluate objective
+#     # --------------------------------------------------
+#     candidates = []
+#     for p in points:
+#         val = float(f.subs({x1: p[0], x2: p[1]}))
+#         candidates.append({"x": [p[0], p[1]], "f": val})
+
+#     optimal = min(candidates, key=lambda d: d["f"])
+
+#     st.success(
+#         f"Optimal solution: x = {optimal['x']}, f(x) = {optimal['f']:.2f}"
+#     )
+
+#     # --------------------------------------------------
+#     # Save solution
+#     # --------------------------------------------------
+#     st.session_state.solution = {
+#         "candidates": candidates,
+#         "optimal": optimal
+#     }
+
+#     st.subheader("💾 Save result")
+#     save_name = st.text_input("Filename", "lp_problem")
+
+#     if st.button("Save"):
+#         data = {
+#             "problem": {
+#                 "objective": f_str,
+#                 "constraints": cons_str
+#             },
+#             "results": st.session_state.solution
+#         }
+
+#         with open(SAVE_DIR / f"{save_name}.json", "w") as f:
+#             json.dump(data, f, indent=2)
+
+#         st.success("Saved successfully 🎉")
+
+
+# # ======================================================
+# if __name__ == "__main__":
+#     main()
 
 
 # import streamlit as st
