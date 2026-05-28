@@ -1,0 +1,42 @@
+nohup: ignoring input
+
+Collecting usage statistics. To deactivate, set browser.gatherUsageStats to false.
+
+
+  You can now view your Streamlit app in your browser.
+
+  Local URL: http://localhost:8503
+  Network URL: http://10.3.1.246:8503
+  External URL: http://43.156.67.61:8503
+
+2026-05-09 15:32:16.560 MediaFileHandler: Missing file .env
+Traceback (most recent call last):
+  File "/home/ubuntu/apps/learning_tools/venv/lib/python3.12/site-packages/streamlit/runtime/memory_media_file_storage.py", line 152, in get_file
+    return self._files_by_id[file_id]
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^
+KeyError: '.env'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/ubuntu/apps/learning_tools/venv/lib/python3.12/site-packages/streamlit/web/server/media_file_handler.py", line 95, in validate_absolute_path
+    self._storage.get_file(absolute_path)
+  File "/home/ubuntu/apps/learning_tools/venv/lib/python3.12/site-packages/streamlit/runtime/memory_media_file_storage.py", line 154, in get_file
+    raise MediaFileStorageError(
+streamlit.runtime.media_file_storage.MediaFileStorageError: Bad filename '.env'. (No media file with id '.env')
+2026-05-09 15:32:16.918 MediaFileHandler: Missing file *
+Traceback (most recent call last):
+  File "/home/ubuntu/apps/learning_tools/venv/lib/python3.12/site-packages/streamlit/runtime/memory_media_file_storage.py", line 152, in get_file
+    return self._files_by_id[file_id]
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^
+KeyError: '*'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/ubuntu/apps/learning_tools/venv/lib/python3.12/site-packages/streamlit/web/server/media_file_handler.py", line 95, in validate_absolute_path
+    self._storage.get_file(absolute_path)
+  File "/home/ubuntu/apps/learning_tools/venv/lib/python3.12/site-packages/streamlit/runtime/memory_media_file_storage.py", line 154, in get_file
+    raise MediaFileStorageError(
+streamlit.runtime.media_file_storage.MediaFileStorageError: Bad filename '*'. (No media file with id '*')
+  Stopping...
